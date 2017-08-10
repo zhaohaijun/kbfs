@@ -28,6 +28,7 @@ type FS struct {
 	ctx      context.Context
 	config   libkbfs.Config
 	root     libkbfs.Node
+	h        *libkbfs.TlfHandle
 	log      logger.Logger
 	deferLog logger.Logger
 }
@@ -71,6 +72,7 @@ func NewFS(ctx context.Context, config libkbfs.Config,
 		ctx:      ctx,
 		config:   config,
 		root:     n,
+		h:        tlfHandle,
 		log:      log,
 		deferLog: log.CloneWithAddedDepth(1),
 	}, nil
@@ -125,6 +127,26 @@ func (fs *FS) lookupOrCreateFile(
 	}
 }
 
+func (fs *FS) lookupParent(filename string) (
+	parent libkbfs.Node, base string, err error) {
+	parts := strings.Split(filename, "/")
+	n := fs.root
+	for i := 0; i < len(parts)-1; i++ {
+		p := parts[i]
+		var ei libkbfs.EntryInfo
+		n, ei, err = fs.config.KBFSOps().Lookup(fs.ctx, n, p)
+		if err != nil {
+			return nil, "", err
+		}
+		if ei.Type != libkbfs.Dir {
+			return nil, "", errors.Errorf("%s is not a directory",
+				path.Join(parts[:i]...))
+		}
+	}
+
+	return n, parts[len(parts)-1], nil
+}
+
 // OpenFile implements the billy.Filesystem interface for FS.
 func (fs *FS) OpenFile(filename string, flag int, perm os.FileMode) (
 	f billy.File, err error) {
@@ -134,22 +156,11 @@ func (fs *FS) OpenFile(filename string, flag int, perm os.FileMode) (
 		fs.deferLog.CDebugf(fs.ctx, "OpenFile done: %+v", err)
 	}()
 
-	parts := strings.Split(filename, "/")
-	n := fs.root
-	for i := 0; i < len(parts)-1; i++ {
-		p := parts[i]
-		var ei libkbfs.EntryInfo
-		n, ei, err = fs.config.KBFSOps().Lookup(fs.ctx, n, p)
-		if err != nil {
-			return nil, err
-		}
-		if ei.Type != libkbfs.Dir {
-			return nil, errors.Errorf("%s is not a directory",
-				path.Join(parts[:i]...))
-		}
+	n, fName, err := fs.lookupParent(filename)
+	if err != nil {
+		return nil, err
 	}
 
-	fName := parts[len(parts)-1]
 	n, ei, err := fs.lookupOrCreateFile(n, fName, flag, perm)
 	if err != nil {
 		return nil, err
@@ -188,8 +199,27 @@ func (fs *FS) Open(filename string) (billy.File, error) {
 }
 
 // Stat implements the billy.Filesystem interface for FS.
-func (fs *FS) Stat(filename string) (os.FileInfo, error) {
-	return nil, nil
+func (fs *FS) Stat(filename string) (fi os.FileInfo, err error) {
+	fs.log.CDebugf(fs.ctx, "Stat %s", filename)
+	defer func() {
+		fs.deferLog.CDebugf(fs.ctx, "Stat done: %+v", err)
+	}()
+
+	n, base, err := fs.lookupParent(filename)
+	if err != nil {
+		return nil, err
+	}
+
+	_, ei, err := fs.config.KBFSOps().Lookup(fs.ctx, n, base)
+	if err != nil {
+		return nil, err
+	}
+
+	return &FileInfo{
+		fs:       fs,
+		ei:       ei,
+		fullpath: filename,
+	}, nil
 }
 
 // Rename implements the billy.Filesystem interface for FS.
@@ -213,8 +243,36 @@ func (fs *FS) TempFile(dir, prefix string) (billy.File, error) {
 }
 
 // ReadDir implements the billy.Filesystem interface for FS.
-func (fs *FS) ReadDir(path string) ([]os.FileInfo, error) {
-	return nil, nil
+func (fs *FS) ReadDir(path string) (fis []os.FileInfo, err error) {
+	fs.log.CDebugf(fs.ctx, "ReadDir %s", path)
+	defer func() {
+		fs.deferLog.CDebugf(fs.ctx, "ReadDir done: %+v", err)
+	}()
+
+	n, base, err := fs.lookupParent(path)
+	if err != nil {
+		return nil, err
+	}
+
+	n, _, err = fs.config.KBFSOps().Lookup(fs.ctx, n, base)
+	if err != nil {
+		return nil, err
+	}
+
+	children, err := fs.config.KBFSOps().GetDirChildren(fs.ctx, n)
+	if err != nil {
+		return nil, err
+	}
+
+	fis = make([]os.FileInfo, 0, len(children))
+	for name, ei := range children {
+		fis = append(fis, &FileInfo{
+			fs:       fs,
+			ei:       ei,
+			fullpath: path + "/" + name,
+		})
+	}
+	return fis, nil
 }
 
 // MkdirAll implements the billy.Filesystem interface for FS.
