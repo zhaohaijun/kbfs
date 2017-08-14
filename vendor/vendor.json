@@ -513,6 +513,12 @@
 			"revisionTime": "2013-09-23T14:52:12Z"
 		},
 		{
+			"checksumSHA1": "TrKJW+flz7JulXU3sqnBJjGzgQc=",
+			"path": "golang.org/x/crypto/acme/autocert",
+			"revision": "b176d7def5d71bdd214203491f89843ed217f420",
+			"revisionTime": "2017-07-23T04:49:35Z"
+		},
+		{
 			"checksumSHA1": "TT1rac6kpQp2vz24m5yDGUNQ/QQ=",
 			"path": "golang.org/x/crypto/cast5",
 			"revision": "cbc3d0884eac986df6e78a039b8792e869bff863",
