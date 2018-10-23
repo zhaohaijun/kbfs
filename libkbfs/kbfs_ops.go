@@ -1007,18 +1007,25 @@ func (fs *KBFSOpsStandard) Status(ctx context.Context) (
 		dbcStatus = dbc.Status(ctx)
 	}
 
+	dmc := fs.config.DiskMDCache()
+	var dmcStatus DiskMDCacheStatus
+	if dmc != nil {
+		dmcStatus = dmc.Status(ctx)
+	}
+
 	return KBFSStatus{
-		CurrentUser:     session.Name.String(),
-		IsConnected:     fs.config.MDServer().IsConnected(),
-		UsageBytes:      usageBytes,
-		ArchiveBytes:    archiveBytes,
-		LimitBytes:      limitBytes,
-		GitUsageBytes:   gitUsageBytes,
-		GitArchiveBytes: gitArchiveBytes,
-		GitLimitBytes:   gitLimitBytes,
-		FailingServices: failures,
-		JournalServer:   jServerStatus,
-		DiskCacheStatus: dbcStatus,
+		CurrentUser:          session.Name.String(),
+		IsConnected:          fs.config.MDServer().IsConnected(),
+		UsageBytes:           usageBytes,
+		ArchiveBytes:         archiveBytes,
+		LimitBytes:           limitBytes,
+		GitUsageBytes:        gitUsageBytes,
+		GitArchiveBytes:      gitArchiveBytes,
+		GitLimitBytes:        gitLimitBytes,
+		FailingServices:      failures,
+		JournalServer:        jServerStatus,
+		DiskBlockCacheStatus: dbcStatus,
+		DiskMDCacheStatus:    dmcStatus,
 	}, ch, err
 }
 
