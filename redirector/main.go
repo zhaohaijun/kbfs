@@ -34,6 +34,7 @@ var kbfusePath = fuse.OSXFUSEPaths{
 const (
 	mountpointTimeout = 5 * time.Second
 	notRunningName    = "KBFS_NOT_RUNNING"
+	username          = "keybase"
 )
 
 type symlink struct {
@@ -278,9 +279,21 @@ func main() {
 	// mountpoints.  TODO: Read a redirector mountpoint from a
 	// root-owned config file.
 	r := newRoot()
-	if os.Args[1] != fmt.Sprintf("/%s", r.runmodeStr) {
+	if os.Args[1] != fmt.Sprintf("/%s/%s", r.runmodeStr, r.runmodeStr) {
 		fmt.Fprintf(os.Stderr, "ERROR: The redirector may only mount at "+
 			"/%s; %s is an invalid mountpoint\n", r.runmodeStr, os.Args[1])
+		os.Exit(1)
+	}
+
+	u, err := user.Lookup(username)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "ERROR: can't find %s user: %v\n", username, err)
+		os.Exit(1)
+	}
+	uid, err := strconv.ParseUint(u.Uid, 10, 32)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "ERROR: can't convert %s's UID %s: %v",
+			username, u.Uid, err)
 		os.Exit(1)
 	}
 
@@ -288,13 +301,15 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	if currUser.Uid != "0" {
+	if currUser.Uid != u.Uid {
 		runtime.LockOSThread()
-		_, _, errNo := syscall.Syscall(syscall.SYS_SETUID, 0, 0, 0)
+		fmt.Printf("Setting to uid %d\n", uid)
+		_, _, errNo := syscall.Syscall(syscall.SYS_SETREUID, uintptr(uid), uintptr(uid), 0)
 		if errNo != 0 {
 			fmt.Fprintf(os.Stderr, "Can't setuid: %+v\n", errNo)
 			os.Exit(1)
 		}
+		fmt.Printf("New uid: %d\n", os.Getuid())
 	}
 
 	options := []fuse.MountOption{fuse.AllowOther()}
@@ -326,7 +341,7 @@ func main() {
 		// This might be a different system thread than above, so we
 		// might need to setuid again.
 		runtime.LockOSThread()
-		_, _, errNo := syscall.Syscall(syscall.SYS_SETUID, 0, 0, 0)
+		_, _, errNo := syscall.Syscall(syscall.SYS_SETUID, uintptr(uid), 0, 0)
 		if errNo != 0 {
 			fmt.Fprintf(os.Stderr, "Can't setuid: %+v\n", errNo)
 			os.Exit(1)
