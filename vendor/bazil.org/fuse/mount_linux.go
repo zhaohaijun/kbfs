@@ -71,7 +71,8 @@ func mount(dir string, conf *mountConfig, ready chan<- struct{}, errp *error) (f
 	defer readFile.Close()
 
 	cmd := exec.Command(
-		"fusermount",
+		"/tmp/libfuse/build/util/fusermount3",
+		//"fusermount",
 		"-o", conf.getOptions(),
 		"--",
 		dir,
