@@ -70,6 +70,8 @@ func mount(dir string, conf *mountConfig, ready chan<- struct{}, errp *error) (f
 	readFile := os.NewFile(uintptr(fds[1]), "fusermount-parent-reads")
 	defer readFile.Close()
 
+	// Args to pass in: keybase-redirector /keybase/keybase fuse 7 allow_other,fd=4,rootmode=40000,user_id=0,group_id=1000
+
 	cmd := exec.Command(
 		"/tmp/libfuse/build/util/fusermount3",
 		//"fusermount",

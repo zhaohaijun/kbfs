@@ -34,7 +34,7 @@ var kbfusePath = fuse.OSXFUSEPaths{
 const (
 	mountpointTimeout = 5 * time.Second
 	notRunningName    = "KBFS_NOT_RUNNING"
-	username          = "keybase"
+	username          = "root"
 )
 
 type symlink struct {
